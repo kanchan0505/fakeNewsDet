@@ -19,7 +19,7 @@ export default function HistoryPanel({ history }: HistoryPanelProps) {
         <div
           key={item.id}
           className={`bg-white rounded-xl shadow-sm border p-4 flex items-center justify-between ${
-            item.label === "fake" ? "border-l-4 border-l-red-400" : "border-l-4 border-l-green-400"
+            item.label === "ai-generated" ? "border-l-4 border-l-red-400" : item.label === "uncertain" ? "border-l-4 border-l-yellow-400" : "border-l-4 border-l-green-400"
           }`}
         >
           <div className="flex-1 min-w-0">
@@ -31,12 +31,14 @@ export default function HistoryPanel({ history }: HistoryPanelProps) {
           <div className="flex items-center gap-3 ml-4">
             <span
               className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                item.label === "fake"
+                item.label === "ai-generated"
                   ? "bg-red-100 text-red-700"
+                  : item.label === "uncertain"
+                  ? "bg-yellow-100 text-yellow-700"
                   : "bg-green-100 text-green-700"
               }`}
             >
-              {item.label.toUpperCase()}
+              {item.label === "ai-generated" ? "AI" : item.label === "human-written" ? "HUMAN" : "UNCERTAIN"}
             </span>
             <span className="text-sm font-medium text-gray-600">
               {(item.confidence * 100).toFixed(1)}%

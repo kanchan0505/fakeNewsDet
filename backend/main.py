@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import predict, news
+from app.routes import predict, news, auth
 
-app = FastAPI(title="Fake News Detection API")
+app = FastAPI(title="AI vs Human Text Detection API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,10 +12,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(predict.router)
 app.include_router(news.router)
 
 
 @app.get("/")
 def root():
-    return {"message": "Fake News Detection API is running"}
+    return {"message": "AI vs Human Text Detection API is running"}

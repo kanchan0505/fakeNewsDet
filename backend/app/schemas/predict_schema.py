@@ -6,5 +6,5 @@ class PredictRequest(BaseModel):
 
 
 class PredictResponse(BaseModel):
-    label: str
+    label: str  # "ai-generated", "human-written", or "uncertain"
     confidence: float

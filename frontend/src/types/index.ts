@@ -1,3 +1,10 @@
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+}
+
 export interface Article {
   id: number;
   title: string;
@@ -5,7 +12,7 @@ export interface Article {
 }
 
 export interface PredictionResult {
-  label: "fake" | "real";
+  label: "ai-generated" | "human-written" | "uncertain";
   confidence: number;
 }
 

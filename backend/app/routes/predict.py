@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 @router.post("/predict", response_model=PredictResponse)
-def predict_news(request: PredictRequest):
+def predict_text(request: PredictRequest):
     result = predict(request.text)
     try:
         save_prediction(request.text, result["label"], result["confidence"])

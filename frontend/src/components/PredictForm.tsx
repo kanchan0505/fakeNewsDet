@@ -31,7 +31,7 @@ export default function PredictForm({ onPredict, loading, initialText, onTextUse
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Paste a news article here to check if it's real or fake..."
+        placeholder="Paste text here to check if it's AI-generated or human-written..."
         rows={8}
         className="w-full p-4 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white"
       />
@@ -50,7 +50,7 @@ export default function PredictForm({ onPredict, loading, initialText, onTextUse
               Analyzing...
             </span>
           ) : (
-            "Check News"
+            "Check Text"
           )}
         </button>
         <button

@@ -1,5 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import Link from 'next/link'
+
 interface SidebarProps {
   isOpen: boolean
   activeView: 'home' | 'analysis'
@@ -48,6 +52,18 @@ export default function Sidebar({
   onShowAnalysis,
   onLoadHistory,
 }: SidebarProps) {
+  const { user, logout } = useAuth()
+  const [imgError, setImgError] = useState(false)
+
+  const initials = user
+    ? user.name
+        .split(' ')
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : ''
+
   return (
     <>
       <div
@@ -116,14 +132,43 @@ export default function Sidebar({
         </div>
 
         <div className="sidebar-bottom">
-          <div className="profile-card">
-            <div className="avatar">RK</div>
-            <div className="profile-info">
-              <div className="profile-name">Rahul Kumar</div>
-              <div className="profile-role">Student · Free Plan</div>
+          {user ? (
+            <div className="profile-card">
+              <div className="avatar">
+                {user.avatar_url && !imgError ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name}
+                    onError={() => setImgError(true)}
+                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  initials
+                )}
+              </div>
+              <div className="profile-info">
+                <div className="profile-name">{user.name}</div>
+                <div className="profile-role">{user.email}</div>
+              </div>
+              <button
+                className="profile-logout-btn"
+                onClick={logout}
+                title="Sign out"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </button>
             </div>
-            <div className="profile-dots">···</div>
-          </div>
+          ) : (
+            <Link href="/signin" onClick={onClose} style={{ textDecoration: 'none' }}>
+              <div className="sidebar-login-btn">
+                <span>🔐</span> Sign In
+              </div>
+            </Link>
+          )}
         </div>
       </aside>
     </>

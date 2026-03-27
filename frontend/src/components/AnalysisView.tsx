@@ -1,10 +1,14 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import AuthModal from './AuthModal'
 
 interface VerdictState {
   score: number
   words: number
+  label: string
+  confidence: number
 }
 
 interface AnalysisViewProps {
@@ -13,6 +17,10 @@ interface AnalysisViewProps {
   analysisScrollRef: React.RefObject<HTMLDivElement | null>
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+if (!API_BASE) {
+  throw new Error('NEXT_PUBLIC_API_URL environment variable is not set')
+}
 const SAMPLES: Record<string, string> = {
   default: `The proliferation of large language models has fundamentally transformed the landscape of content creation. These systems, trained on vast corpora of human-generated text, are capable of producing remarkably coherent and contextually appropriate prose across a wide variety of domains. Furthermore, their capacity to synthesize information from diverse sources enables them to generate comprehensive analyses that would otherwise require significant human effort and expertise to produce.`,
   essay: `Artificial intelligence represents a paradigm shift in how societies approach complex problem-solving. The integration of machine learning algorithms into everyday decision-making processes has engendered both opportunities and challenges for contemporary institutions. Consequently, policymakers must develop comprehensive regulatory frameworks that balance innovation with ethical considerations.`,
@@ -20,16 +28,6 @@ const SAMPLES: Record<string, string> = {
   email: `I hope this message finds you well. I am writing to follow up on our previous discussion regarding the Q3 deliverables. As per our conversation, the timeline for the project remains on track. Please find attached the updated documentation reflecting the changes we discussed. Kindly review the same at your earliest convenience and revert with your feedback.`,
   research: `This study investigates the correlation between socioeconomic factors and academic performance among secondary school students. Data were collected from 1,240 participants across five districts using stratified random sampling. Preliminary findings suggest a statistically significant relationship (p < 0.01) between household income and standardised test scores, corroborating prior literature in the field.`,
   human: `When I was twelve, my grandfather taught me how to make chai the way his mother used to. Not with teabags, never with teabags — he'd cringe at the thought. You had to bruise the cardamom pods first, he said, and add the ginger before the milk. I never quite got it right while he was alive. Now I make it every morning and somehow it always tastes a little different, like I'm still figuring it out.`,
-}
-
-function computeVerdict(text: string): VerdictState {
-  const words = text.trim().split(/\s+/).length
-  const hasFillerWords = /furthermore|consequently|additionally|in conclusion|it is worth noting/i.test(text)
-  let score = 30 + Math.floor(Math.random() * 30)
-  if (hasFillerWords) score += 25
-  if (words > 60) score += 10
-  score = Math.min(score, 96)
-  return { score, words }
 }
 
 type InputMode = 'text' | 'url' | 'code' | 'doc'
@@ -42,6 +40,8 @@ const modePlaceholders: Record<InputMode, string> = {
 }
 
 export default function AnalysisView({ inputText, onInputChange, analysisScrollRef }: AnalysisViewProps) {
+  const { user } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [mode, setMode] = useState<InputMode>('text')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [verdict, setVerdict] = useState<VerdictState | null>(null)
@@ -63,7 +63,7 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
     setShowResults(false)
   }
 
-  const runAnalysis = () => {
+  const runAnalysis = async () => {
     const text = inputText.trim()
     if (!text) {
       setInputError(true)
@@ -71,17 +71,45 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
       setTimeout(() => setInputError(false), 2200)
       return
     }
+    // Check auth before running analysis
+    if (!user) {
+      setShowAuthModal(true)
+      return
+    }
     setIsAnalyzing(true)
     setShowResults(false)
-    setTimeout(() => {
-      setIsAnalyzing(false)
-      const result = computeVerdict(text)
-      setVerdict(result)
+    try {
+      const res = await fetch(`${API_BASE}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      const data = await res.json()
+      const words = text.split(/\s+/).length
+      // Convert backend response to score:
+      // ai-generated → high score (confidence%), human-written → low score (100-confidence%)
+      let score: number
+      if (data.label === 'ai-generated') {
+        score = Math.round(data.confidence * 100)
+      } else if (data.label === 'human-written') {
+        score = Math.round((1 - data.confidence) * 100)
+      } else {
+        // uncertain
+        score = 50
+      }
+      setVerdict({ score, words, label: data.label, confidence: data.confidence })
       setShowResults(true)
       setTimeout(() => {
         analysisScrollRef.current?.scrollTo({ top: 9999, behavior: 'smooth' })
       }, 100)
-    }, 2200)
+    } catch {
+      // Fallback: simple local heuristic if backend is unreachable
+      const words = text.split(/\s+/).length
+      setVerdict({ score: 50, words, label: 'uncertain', confidence: 0.5 })
+      setShowResults(true)
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -91,41 +119,43 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
     if (file) onInputChange(`[File loaded: ${file.name}]`)
   }
 
-  const score = verdict?.score ?? 73
+  const score = verdict?.score ?? 50
   const words = verdict?.words ?? 0
+  const confidence = verdict?.confidence ?? 0.5
+  const backendLabel = verdict?.label ?? 'uncertain'
   const gaugeDashOffset = (194 - (score / 100) * 194).toFixed(1)
   const gaugeColor = score >= 65 ? 'var(--danger)' : score >= 40 ? 'var(--warn)' : 'var(--safe)'
 
-  const verdictData = score >= 65
+  const verdictData = backendLabel === 'ai-generated'
     ? {
         bannerClass: 'verdict-banner ai-verdict',
         emoji: '🤖',
-        title: 'Likely AI-Generated',
-        desc: 'Our model detected strong patterns consistent with large language model output. High perplexity uniformity and low burstiness suggest machine-generated text.',
+        title: 'AI-Generated Text Detected',
+        desc: `Our model detected strong patterns consistent with AI-generated content. Confidence: ${(confidence * 100).toFixed(1)}%. The text shows characteristics typical of large language model output.`,
         ringClass: 'score-ring high',
-        badgeText: '↑ High Risk',
+        badgeText: '↑ AI Detected',
         badgeClass: 's-pill danger',
       }
-    : score >= 40
+    : backendLabel === 'uncertain'
     ? {
         bannerClass: 'verdict-banner',
         bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
         emoji: '🔀',
-        title: 'Mixed — Partially AI-Assisted',
-        desc: 'The content appears to be a blend of human and AI writing. Some sections show human stylistic patterns while others display characteristics of AI generation.',
+        title: 'Uncertain — Could Be Either',
+        desc: `The model confidence is too low to make a definitive call (${(confidence * 100).toFixed(1)}%). The text may be a blend of AI and human writing, or simply ambiguous.`,
         ringClass: 'score-ring',
         ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
-        badgeText: '~ Medium Risk',
+        badgeText: '~ Uncertain',
         badgeClass: 's-pill',
         badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
       }
     : {
         bannerClass: 'verdict-banner human-verdict',
         emoji: '✍️',
-        title: 'Likely Human-Written',
-        desc: 'The content shows strong indicators of authentic human authorship — natural sentence variance, organic vocabulary choices, and irregular rhythm patterns.',
+        title: 'Human-Written Text Detected',
+        desc: `The content shows strong indicators of authentic human authorship. Confidence: ${(confidence * 100).toFixed(1)}%. Natural sentence variance, organic vocabulary and irregular rhythm patterns detected.`,
         ringClass: 'score-ring low',
-        badgeText: '↓ Low Risk',
+        badgeText: '↓ Human Written',
         badgeClass: 's-pill safe',
       }
 
@@ -279,17 +309,17 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
               <div className="s-card">
                 <div className="s-card-label">Human Probability</div>
                 <div className="s-card-value" style={{ color: 'var(--safe)' }}>{100 - score}%</div>
-                <div className="s-card-sub"><span className="s-pill safe">↓ Low Signal</span></div>
+                <div className="s-card-sub"><span className="s-pill safe">Complementary</span></div>
+              </div>
+              <div className="s-card">
+                <div className="s-card-label">Model Confidence</div>
+                <div className="s-card-value" style={{ color: confidence >= 0.8 ? 'var(--safe)' : confidence >= 0.6 ? 'var(--warn)' : 'var(--danger)' }}>{(confidence * 100).toFixed(1)}%</div>
+                <div className="s-card-sub">{confidence >= 0.8 ? 'High confidence' : confidence >= 0.6 ? 'Moderate confidence' : 'Low confidence'}</div>
               </div>
               <div className="s-card">
                 <div className="s-card-label">Word Count</div>
                 <div className="s-card-value" style={{ color: 'var(--text)' }}>{words || '—'}</div>
                 <div className="s-card-sub">words analysed</div>
-              </div>
-              <div className="s-card accent-bg">
-                <div className="s-card-label">Reading Level</div>
-                <div className="s-card-value" style={{ color: '#fff' }}>B2</div>
-                <div className="s-card-sub" style={{ color: 'rgba(255,255,255,.5)' }}>Upper Intermediate</div>
               </div>
             </div>
 
@@ -429,6 +459,17 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
 
         </div>
       </div>
+
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => {
+            setShowAuthModal(false)
+            // After auth, auto-run the analysis
+            setTimeout(() => runAnalysis(), 100)
+          }}
+        />
+      )}
     </div>
   )
 }

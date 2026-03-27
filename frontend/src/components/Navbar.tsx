@@ -17,7 +17,7 @@ export default function Navbar({ activeTab, setActiveTab }: NavbarProps) {
           <div className="flex items-center gap-2">
             <span className="text-2xl">🔍</span>
             <span className="text-xl font-bold text-gray-900">
-              FakeNews<span className="text-blue-600">AI</span>
+              Authenti<span className="text-blue-600">Check</span>
             </span>
           </div>
           <div className="flex gap-1">
