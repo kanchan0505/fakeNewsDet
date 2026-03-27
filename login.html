@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login - AI Misinformation Detector</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- CSS LINK (FIXED) -->
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+
+<div class="container">
+
+  <div class="card">
+    
+    <!-- Logo -->
+    <div class="logo">
+      ⚡ AI Misinformation Detector
+    </div>
+
+    <!-- Subtitle -->
+    <p class="subtitle">
+      Access your misinformation detection dashboard.
+    </p>
+
+    <!-- Email -->
+    <label>Email Address</label>
+    <input type="text" id="email" placeholder="you@example.com">
+    <p class="error" id="emailError"></p>
+
+    <!-- Password -->
+    <label>Password</label>
+    <div class="password-box">
+      <input type="password" id="password" placeholder="Min. 8 characters">
+      <span onclick="togglePassword()">👁</span>
+    </div>
+    <p class="error" id="passwordError"></p>
+
+    <!-- Button -->
+    <button onclick="login()">Login</button>
+
+    <!-- Register Link -->
+    <div class="link">
+      Don't have an account? 
+      <a href="register.html">Register here</a>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- JS LINK (FIXED) -->
+<script src="js/login.js"></script>
+
+</body>
+</html>

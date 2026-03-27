@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Register - AI Misinformation Detector</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- CSS LINK -->
+<link rel="stylesheet" href="css/style.css">
+
+</head>
+<body>
+
+<div class="card">
+
+  <!-- HEADING -->
+  <h1>Create your <span>account</span></h1>
+  <p class="subtitle">
+    Join to start detecting AI-generated misinformation.
+  </p>
+
+  <!-- NAME -->
+  <div class="input-group">
+    <input type="text" id="name" placeholder="Full Name">
+  </div>
+
+  <!-- EMAIL -->
+  <div class="input-group">
+    <input type="email" id="email" placeholder="Email Address">
+  </div>
+
+  <!-- PASSWORD -->
+  <div class="input-group">
+    <input type="password" id="password" placeholder="Min. 6 characters">
+  </div>
+
+  <!-- ERROR -->
+  <p class="error" id="errorMsg"></p>
+
+  <!-- BUTTON -->
+  <button onclick="register()">Create Account</button>
+
+  <!-- LOGIN LINK -->
+  <div class="link">
+    Already have an account? 
+    <a href="login.html">Login here</a>
+  </div>
+
+</div>
+
+<!-- JS LINK -->
+<script src="js/register.js"></script>
+
+</body>
+</html>

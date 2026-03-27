@@ -1,0 +1,94 @@
+body {
+  margin: 0;
+  font-family: "Times New Roman", serif;
+  background: radial-gradient(circle at 20% 20%, #1a1a2e, #0a0a0f);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: white;
+}
+
+/* CARD */
+.card {
+  background: rgba(19, 19, 26, 0.9);
+  padding: 35px;
+  border-radius: 20px;
+  width: 380px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  text-align: center;
+}
+
+/* TITLE */
+h2 {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #aaa;
+  margin-bottom: 20px;
+}
+
+/* INPUT */
+.input-group {
+  margin: 15px 0;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #333;
+  background: #0a0a0f;
+  color: white;
+  outline: none;
+}
+
+.input-group input:focus {
+  border-color: #6c63ff;
+}
+
+/* BUTTON */
+button {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(90deg, #6c63ff, #00d4ff);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  margin-top: 10px;
+  transition: 0.3s;
+}
+
+button:hover {
+  transform: scale(1.03);
+  opacity: 0.9;
+}
+
+/* ERROR */
+.error {
+  color: #ff4d4d;
+  font-size: 13px;
+  text-align: left;
+  margin-top: 5px;
+}
+
+/* LINK */
+.link {
+  margin-top: 15px;
+  font-size: 14px;
+}
+
+.link a {
+  color: #6c63ff;
+  text-decoration: none;
+}
+
+.link a:hover {
+  text-decoration: underline;
+}
