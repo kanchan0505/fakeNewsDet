@@ -11,32 +11,17 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
-  const { login, googleLogin } = useAuth()
+  const { login, startGoogleLogin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     const result = await login(email, password)
-    setLoading(false)
-    if (result.error) {
-      setError(result.error)
-    } else {
-      onSuccess?.()
-      onClose()
-    }
-  }
-
-  const handleGoogleSuccess = async (accessToken: string) => {
-    setError('')
-    setLoading(true)
-    const result = await googleLogin(accessToken)
     setLoading(false)
     if (result.error) {
       setError(result.error)
@@ -85,13 +70,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
 
         <div className="auth-divider">or</div>
 
-        {googleClientId && (
-          <GoogleSignInButton
-            onSuccess={handleGoogleSuccess}
-            onError={() => setError('Google sign-in failed')}
-            disabled={loading}
-          />
-        )}
+        <GoogleSignInButton disabled={loading} />
 
         <div className="auth-footer">
           Don&apos;t have an account?{' '}

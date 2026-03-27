@@ -16,7 +16,8 @@ interface AuthContextType {
   loading: boolean
   login: (email: string, password: string) => Promise<{ error?: string }>
   register: (name: string, email: string, password: string) => Promise<{ error?: string }>
-  googleLogin: (accessToken: string) => Promise<{ error?: string }>
+  startGoogleLogin: () => void
+  setTokenAndFetchUser: (token: string) => Promise<void>
   logout: () => void
 }
 
@@ -25,7 +26,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   login: async () => ({}),
   register: async () => ({}),
-  googleLogin: async () => ({}),
+  startGoogleLogin: () => {},
+  setTokenAndFetchUser: async () => {},
   logout: () => {},
 })
 
@@ -89,20 +91,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const googleLogin = useCallback(async (accessToken: string) => {
+  const startGoogleLogin = useCallback(() => {
+    window.location.href = `${API_BASE}/auth/google`
+  }, [])
+
+  const setTokenAndFetchUser = useCallback(async (token: string) => {
+    localStorage.setItem('token', token)
+    if (!API_BASE) return
     try {
-      const res = await fetch(`${API_BASE}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: accessToken }),
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      const data = await res.json()
-      if (!res.ok) return { error: data.detail || 'Google login failed' }
-      localStorage.setItem('token', data.access_token)
-      setUser(data.user)
-      return {}
+      if (res.ok) {
+        const data = await res.json()
+        setUser(data)
+      } else {
+        localStorage.removeItem('token')
+      }
     } catch {
-      return { error: 'Network error. Please try again.' }
+      localStorage.removeItem('token')
     }
   }, [])
 
@@ -112,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, startGoogleLogin, setTokenAndFetchUser, logout }}>
       {children}
     </AuthContext.Provider>
   )

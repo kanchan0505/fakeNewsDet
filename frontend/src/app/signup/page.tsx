@@ -7,7 +7,7 @@ import Link from 'next/link'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
 
 export default function SignUpPage() {
-  const { register, googleLogin, user, loading: authLoading } = useAuth()
+  const { register, user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -15,8 +15,6 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
   // Redirect if already logged in
   useEffect(() => {
@@ -50,17 +48,7 @@ export default function SignUpPage() {
     }
   }
 
-  const handleGoogleSuccess = async (accessToken: string) => {
-    setError('')
-    setLoading(true)
-    const result = await googleLogin(accessToken)
-    setLoading(false)
-    if (result.error) {
-      setError(result.error)
-    } else {
-      router.push('/')
-    }
-  }
+
 
   return (
     <div className="auth-page">
@@ -120,14 +108,7 @@ export default function SignUpPage() {
 
         <div className="auth-divider">or</div>
 
-        {googleClientId && (
-          <GoogleSignInButton
-            onSuccess={handleGoogleSuccess}
-            onError={() => setError('Google sign-in failed')}
-            disabled={loading}
-            label="Sign up with Google"
-          />
-        )}
+        <GoogleSignInButton disabled={loading} label="Sign up with Google" />
 
         <div className="auth-footer">
           Already have an account?{' '}
