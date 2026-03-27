@@ -14,10 +14,17 @@ export default function PredictForm({ onPredict, loading, initialText, onTextUse
 
   useEffect(() => {
     if (initialText) {
-      setText(initialText);
-      onTextUsed?.();
+      // Avoid setState on every render: only update if different
+      setText((prev) => {
+        if (prev !== initialText) {
+          onTextUsed?.();
+          return initialText;
+        }
+        return prev;
+      });
     }
-  }, [initialText, onTextUsed]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialText]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

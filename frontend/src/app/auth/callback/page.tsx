@@ -16,7 +16,8 @@ function AuthCallbackInner() {
     const error = searchParams.get('error')
 
     if (error || !token) {
-      setStatus('error')
+      // Avoid setState directly: use microtask
+      Promise.resolve().then(() => setStatus('error'))
       setTimeout(() => router.replace('/signin?error=google_failed'), 2000)
       return
     }

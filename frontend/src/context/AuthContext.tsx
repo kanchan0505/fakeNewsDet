@@ -40,22 +40,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
+    let ignore = false;
+    const token = localStorage.getItem('token');
     if (token && API_BASE) {
       fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {
-          if (res.ok) return res.json()
-          throw new Error('Invalid token')
+          if (res.ok) return res.json();
+          throw new Error('Invalid token');
         })
-        .then((data) => setUser(data))
+        .then((data) => {
+          if (!ignore) setUser(data);
+        })
         .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false))
+        .finally(() => {
+          if (!ignore) setLoading(false);
+        });
     } else {
-      setLoading(false)
+      if (!ignore) Promise.resolve().then(() => setLoading(false));
     }
-  }, [])
+    return () => { ignore = true; };
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
