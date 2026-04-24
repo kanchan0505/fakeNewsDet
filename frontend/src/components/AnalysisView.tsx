@@ -9,6 +9,20 @@ interface VerdictState {
   words: number
   label: string
   confidence: number
+  claims?: FactCheckClaim[]
+  matches?: number
+  reason?: string
+  usedBroadQuery?: boolean
+}
+
+interface FactCheckClaim {
+  claim: string
+  claimant: string
+  rating: string
+  publisher: string
+  url: string
+  review_date: string
+  verdict: string
 }
 
 type Detector = 'ai' | 'news'
@@ -103,7 +117,16 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
         else if (data.label === 'real') score = Math.round((1 - data.confidence) * 100)
         else score = 50
       }
-      setVerdict({ score, words, label: data.label, confidence: data.confidence })
+      setVerdict({
+        score,
+        words,
+        label: data.label,
+        confidence: data.confidence,
+        claims: data.claims,
+        matches: data.matches,
+        reason: data.reason,
+        usedBroadQuery: data.used_broad_query,
+      })
       setShowResults(true)
       setTimeout(() => {
         analysisScrollRef.current?.scrollTo({ top: 9999, behavior: 'smooth' })
@@ -137,8 +160,10 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
         ? {
             bannerClass: 'verdict-banner ai-verdict',
             emoji: '🚨',
-            title: 'Fake News Detected',
-            desc: `Our model flagged this content as likely FAKE with ${(confidence * 100).toFixed(1)}% confidence. Verify against trusted sources before sharing.`,
+            title: 'Likely Fake / Misleading',
+            desc: verdict?.reason
+              ? `${verdict.reason} Confidence: ${(confidence * 100).toFixed(1)}%.`
+              : `Google Fact Check matched ${verdict?.matches ?? 0} related claim${(verdict?.matches ?? 0) === 1 ? '' : 's'}, with the majority rated FALSE/MISLEADING by reviewers. Confidence: ${(confidence * 100).toFixed(1)}%.`,
             ringClass: 'score-ring high',
             badgeText: '↑ Likely Fake',
             badgeClass: 's-pill danger',
@@ -147,8 +172,8 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
         ? {
             bannerClass: 'verdict-banner human-verdict',
             emoji: '✅',
-            title: 'Looks Like Real News',
-            desc: `The content matches patterns of authentic news reporting. Confidence: ${(confidence * 100).toFixed(1)}%.`,
+            title: 'Fact-Checkers Rated This As True',
+            desc: `Reviewers from sources indexed by Google Fact Check rated related claims as TRUE/ACCURATE. Confidence: ${(confidence * 100).toFixed(1)}%.`,
             ringClass: 'score-ring low',
             badgeText: '↓ Looks Real',
             badgeClass: 's-pill safe',
@@ -157,8 +182,10 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
             bannerClass: 'verdict-banner',
             bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
             emoji: '🤔',
-            title: 'Uncertain — Verify Manually',
-            desc: `Model confidence is too low to call this real or fake (${(confidence * 100).toFixed(1)}%). Cross-check with reputable fact-checkers.`,
+            title: (verdict?.matches ?? 0) === 0 ? 'No Fact-Check Found' : 'Mixed Fact-Check Signals',
+            desc: (verdict?.matches ?? 0) === 0
+              ? 'No published fact-check matched this text. That doesn\'t prove it\'s true — try a shorter, more specific claim, or verify with a trusted source.'
+              : 'Reviewers disagree or the claims couldn\'t be classified clearly. Open the sources below to read the original reviews.',
             ringClass: 'score-ring',
             ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
             badgeText: '~ Uncertain',
@@ -480,32 +507,78 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
               </div>
             </div>
 
-            {/* Plagiarism */}
-            <div className="a-card" style={{ marginBottom: '40px' }}>
-              <div className="ac-header">
-                <div className="ac-title">🔍 Plagiarism Check</div>
-                <span className="ac-badge red">2 Matches</span>
-              </div>
-              <div className="match-list">
-                <div className="match-row high-match">
-                  <div style={{ flex: 1 }}>
-                    <div className="match-src">Wikipedia — Large language model</div>
-                    <div className="match-url">en.wikipedia.org</div>
+            {/* Plagiarism (AI mode) / Fact-Check Sources (News mode) */}
+            {detector === 'news' ? (
+              <div className="a-card" style={{ marginBottom: '40px' }}>
+                <div className="ac-header">
+                  <div className="ac-title">🔎 Fact-Check Sources</div>
+                  <span className="ac-badge gold">
+                    {verdict?.claims?.length ?? 0} review{(verdict?.claims?.length ?? 0) === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="match-list">
+                  {verdict?.claims && verdict.claims.length > 0 ? (
+                    verdict.claims.map((c, i) => (
+                      <a
+                        key={i}
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`match-row ${c.verdict === 'fake' ? 'high-match' : 'low-match'}`}
+                        style={{ textDecoration: 'none', color: 'inherit', display: 'flex' }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="match-src" style={{ whiteSpace: 'normal' }}>
+                            {c.claim || '(no claim text)'}
+                          </div>
+                          <div className="match-url">
+                            {c.publisher || 'Unknown publisher'}
+                            {c.claimant ? ` · claimed by ${c.claimant}` : ''}
+                            {c.review_date ? ` · ${c.review_date.slice(0, 10)}` : ''}
+                          </div>
+                        </div>
+                        <div className={`match-pct ${c.verdict === 'fake' ? 'high' : c.verdict === 'real' ? 'low' : ''}`}>
+                          {c.rating}
+                        </div>
+                      </a>
+                    ))
+                  ) : (
+                    <div style={{ padding: '14px 18px', background: 'rgba(61,107,79,.04)', borderRadius: '12px', fontSize: '.74rem', color: 'var(--muted)', textAlign: 'center', border: '1px solid rgba(61,107,79,.09)' }}>
+                      No matching fact-check reviews found in Google&apos;s database.
+                    </div>
+                  )}
+                  <div style={{ padding: '10px 14px', fontSize: '.7rem', color: 'var(--muted)', textAlign: 'center' }}>
+                    Powered by Google Fact Check Tools API
                   </div>
-                  <div className="match-pct high">34%</div>
-                </div>
-                <div className="match-row low-match">
-                  <div style={{ flex: 1 }}>
-                    <div className="match-src">ArXiv — Attention Is All You Need</div>
-                    <div className="match-url">arxiv.org/abs/1706.03762</div>
-                  </div>
-                  <div className="match-pct low">12%</div>
-                </div>
-                <div style={{ padding: '14px 18px', background: 'rgba(61,107,79,.04)', borderRadius: '12px', fontSize: '.74rem', color: 'var(--muted)', textAlign: 'center', marginTop: '8px', border: '1px solid rgba(61,107,79,.09)' }}>
-                  ✅ No further matches in 2.4M+ sources
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="a-card" style={{ marginBottom: '40px' }}>
+                <div className="ac-header">
+                  <div className="ac-title">🔍 Plagiarism Check</div>
+                  <span className="ac-badge red">2 Matches</span>
+                </div>
+                <div className="match-list">
+                  <div className="match-row high-match">
+                    <div style={{ flex: 1 }}>
+                      <div className="match-src">Wikipedia — Large language model</div>
+                      <div className="match-url">en.wikipedia.org</div>
+                    </div>
+                    <div className="match-pct high">34%</div>
+                  </div>
+                  <div className="match-row low-match">
+                    <div style={{ flex: 1 }}>
+                      <div className="match-src">ArXiv — Attention Is All You Need</div>
+                      <div className="match-url">arxiv.org/abs/1706.03762</div>
+                    </div>
+                    <div className="match-pct low">12%</div>
+                  </div>
+                  <div style={{ padding: '14px 18px', background: 'rgba(61,107,79,.04)', borderRadius: '12px', fontSize: '.74rem', color: 'var(--muted)', textAlign: 'center', marginTop: '8px', border: '1px solid rgba(61,107,79,.09)' }}>
+                    ✅ No further matches in 2.4M+ sources
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Action Row */}
             <div className="action-row">
