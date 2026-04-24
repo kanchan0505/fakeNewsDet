@@ -1,7 +1,7 @@
 import os
 import jwt
+import bcrypt as _bcrypt
 from datetime import datetime, timedelta, timezone
-from passlib.hash import bcrypt
 from dotenv import load_dotenv
 from app.services.db_service import get_connection
 
@@ -13,11 +13,11 @@ ACCESS_TOKEN_EXPIRE_HOURS = 72
 
 
 def hash_password(password: str) -> str:
-    return bcrypt.hash(password)
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.verify(password, password_hash)
+    return _bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
 def create_access_token(user_id: int) -> str:
