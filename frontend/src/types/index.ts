@@ -16,6 +16,11 @@ export interface PredictionResult {
   confidence: number;
 }
 
+export interface NewsPredictionResult {
+  label: "real" | "fake" | "uncertain";
+  confidence: number;
+}
+
 export interface HistoryItem {
   id: number;
   input_text: string;

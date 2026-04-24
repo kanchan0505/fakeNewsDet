@@ -11,6 +11,8 @@ interface VerdictState {
   confidence: number
 }
 
+type Detector = 'ai' | 'news'
+
 interface AnalysisViewProps {
   inputText: string
   onInputChange: (text: string) => void
@@ -43,6 +45,7 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
   const { user } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [mode, setMode] = useState<InputMode>('text')
+  const [detector, setDetector] = useState<Detector>('ai')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [verdict, setVerdict] = useState<VerdictState | null>(null)
   const [showResults, setShowResults] = useState(false)
@@ -79,23 +82,26 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
     setIsAnalyzing(true)
     setShowResults(false)
     try {
-      const res = await fetch(`${API_BASE}/predict`, {
+      const endpoint = detector === 'news' ? '/predict/news' : '/predict'
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
       const data = await res.json()
       const words = text.split(/\s+/).length
-      // Convert backend response to score:
-      // ai-generated → high score (confidence%), human-written → low score (100-confidence%)
+      // Convert backend response to a 0-100 "danger score":
+      //   AI mode  → ai-generated = high, human-written = low
+      //   News mode → fake = high, real = low
       let score: number
-      if (data.label === 'ai-generated') {
-        score = Math.round(data.confidence * 100)
-      } else if (data.label === 'human-written') {
-        score = Math.round((1 - data.confidence) * 100)
+      if (detector === 'ai') {
+        if (data.label === 'ai-generated') score = Math.round(data.confidence * 100)
+        else if (data.label === 'human-written') score = Math.round((1 - data.confidence) * 100)
+        else score = 50
       } else {
-        // uncertain
-        score = 50
+        if (data.label === 'fake') score = Math.round(data.confidence * 100)
+        else if (data.label === 'real') score = Math.round((1 - data.confidence) * 100)
+        else score = 50
       }
       setVerdict({ score, words, label: data.label, confidence: data.confidence })
       setShowResults(true)
@@ -126,7 +132,40 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
   const gaugeDashOffset = (194 - (score / 100) * 194).toFixed(1)
   const gaugeColor = score >= 65 ? 'var(--danger)' : score >= 40 ? 'var(--warn)' : 'var(--safe)'
 
-  const verdictData = backendLabel === 'ai-generated'
+  const verdictData = detector === 'news'
+    ? (backendLabel === 'fake'
+        ? {
+            bannerClass: 'verdict-banner ai-verdict',
+            emoji: '🚨',
+            title: 'Fake News Detected',
+            desc: `Our model flagged this content as likely FAKE with ${(confidence * 100).toFixed(1)}% confidence. Verify against trusted sources before sharing.`,
+            ringClass: 'score-ring high',
+            badgeText: '↑ Likely Fake',
+            badgeClass: 's-pill danger',
+          }
+        : backendLabel === 'real'
+        ? {
+            bannerClass: 'verdict-banner human-verdict',
+            emoji: '✅',
+            title: 'Looks Like Real News',
+            desc: `The content matches patterns of authentic news reporting. Confidence: ${(confidence * 100).toFixed(1)}%.`,
+            ringClass: 'score-ring low',
+            badgeText: '↓ Looks Real',
+            badgeClass: 's-pill safe',
+          }
+        : {
+            bannerClass: 'verdict-banner',
+            bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
+            emoji: '🤔',
+            title: 'Uncertain — Verify Manually',
+            desc: `Model confidence is too low to call this real or fake (${(confidence * 100).toFixed(1)}%). Cross-check with reputable fact-checkers.`,
+            ringClass: 'score-ring',
+            ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
+            badgeText: '~ Uncertain',
+            badgeClass: 's-pill',
+            badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
+          })
+    : backendLabel === 'ai-generated'
     ? {
         bannerClass: 'verdict-banner ai-verdict',
         emoji: '🤖',
@@ -170,6 +209,27 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
             <div className={`input-card${inputError ? ' input-error' : ''}`}
               style={inputError ? { outline: '2px solid var(--danger)' } : undefined}
             >
+              {/* Detector Tabs */}
+              <div
+                className="input-modes"
+                style={{ marginBottom: 8, borderBottom: '1px solid rgba(0,0,0,.06)', paddingBottom: 8 }}
+              >
+                <button
+                  className={`imode${detector === 'ai' ? ' active' : ''}`}
+                  onClick={() => { setDetector('ai'); setShowResults(false) }}
+                  title="Detect AI vs human-written text"
+                >
+                  🤖 AI Text Detection
+                </button>
+                <button
+                  className={`imode${detector === 'news' ? ' active' : ''}`}
+                  onClick={() => { setDetector('news'); setShowResults(false) }}
+                  title="Detect fake vs real news"
+                >
+                  📰 News Detection
+                </button>
+              </div>
+
               {/* Mode Tabs */}
               <div className="input-modes">
                 {(['text', 'url', 'code', 'doc'] as InputMode[]).map((m) => (
@@ -190,7 +250,13 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
               <textarea
                 ref={textareaRef}
                 className="input-area"
-                placeholder={inputError ? '⚠️ Please enter some content first…' : modePlaceholders[mode]}
+                placeholder={
+                  inputError
+                    ? '⚠️ Please enter some content first…'
+                    : detector === 'news'
+                    ? 'Paste a news article, headline, or social-media post — we\'ll check if it looks real or fake…'
+                    : modePlaceholders[mode]
+                }
                 value={inputText}
                 onChange={(e) => onInputChange(e.target.value)}
               />
@@ -288,14 +354,14 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
                 >
                   {score}%
                 </div>
-                <div className="score-label">AI Score</div>
+                <div className="score-label">{detector === 'news' ? 'Fake Score' : 'AI Score'}</div>
               </div>
             </div>
 
             {/* Stat Grid */}
             <div className="stat-grid">
               <div className="s-card">
-                <div className="s-card-label">AI Probability</div>
+                <div className="s-card-label">{detector === 'news' ? 'Fake Probability' : 'AI Probability'}</div>
                 <div className="s-card-value" style={{ color: 'var(--danger)' }}>{score}%</div>
                 <div className="s-card-sub">
                   <span
@@ -307,7 +373,7 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
                 </div>
               </div>
               <div className="s-card">
-                <div className="s-card-label">Human Probability</div>
+                <div className="s-card-label">{detector === 'news' ? 'Real Probability' : 'Human Probability'}</div>
                 <div className="s-card-value" style={{ color: 'var(--safe)' }}>{100 - score}%</div>
                 <div className="s-card-sub"><span className="s-pill safe">Complementary</span></div>
               </div>

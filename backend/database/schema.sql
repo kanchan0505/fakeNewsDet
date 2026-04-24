@@ -23,10 +23,14 @@ CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
 CREATE TABLE IF NOT EXISTS predictions (
     id SERIAL PRIMARY KEY,
     input_text TEXT NOT NULL,
-    label VARCHAR(15) NOT NULL CHECK (label IN ('ai-generated', 'human-written', 'uncertain')),
+    label VARCHAR(15) NOT NULL,
     confidence FLOAT NOT NULL,
+    mode VARCHAR(10) NOT NULL DEFAULT 'ai',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- For existing databases, add the mode column if missing:
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS mode VARCHAR(10) NOT NULL DEFAULT 'ai';
 
 -- Demo sample texts table
 CREATE TABLE IF NOT EXISTS demo_articles (

@@ -14,14 +14,22 @@ def get_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
-def save_prediction(input_text: str, label: str, confidence: float):
+def save_prediction(input_text: str, label: str, confidence: float, mode: str = "ai"):
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO predictions (input_text, label, confidence) VALUES (%s, %s, %s) RETURNING id",
-                (input_text, label, confidence),
-            )
+            try:
+                cur.execute(
+                    "INSERT INTO predictions (input_text, label, confidence, mode) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (input_text, label, confidence, mode),
+                )
+            except psycopg2.errors.UndefinedColumn:
+                # Older schema without `mode` column — fall back.
+                conn.rollback()
+                cur.execute(
+                    "INSERT INTO predictions (input_text, label, confidence) VALUES (%s, %s, %s) RETURNING id",
+                    (input_text, label, confidence),
+                )
             result = cur.fetchone()
             conn.commit()
             return result["id"]

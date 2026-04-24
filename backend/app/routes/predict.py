@@ -1,6 +1,12 @@
 from fastapi import APIRouter
-from app.schemas.predict_schema import PredictRequest, PredictResponse
+from app.schemas.predict_schema import (
+    PredictRequest,
+    PredictResponse,
+    NewsPredictRequest,
+    NewsPredictResponse,
+)
 from app.services.model_service import predict
+from app.services.news_model_service import predict_news
 from app.services.db_service import save_prediction, get_prediction_history
 
 router = APIRouter()
@@ -10,9 +16,19 @@ router = APIRouter()
 def predict_text(request: PredictRequest):
     result = predict(request.text)
     try:
-        save_prediction(request.text, result["label"], result["confidence"])
+        save_prediction(request.text, result["label"], result["confidence"], mode="ai")
     except Exception:
         pass  # DB is optional, don't break predictions if DB is down
+    return result
+
+
+@router.post("/predict/news", response_model=NewsPredictResponse)
+def predict_news_text(request: NewsPredictRequest):
+    result = predict_news(request.text)
+    try:
+        save_prediction(request.text, result["label"], result["confidence"], mode="news")
+    except Exception:
+        pass
     return result
 
 
