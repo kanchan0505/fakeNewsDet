@@ -6,3 +6,7 @@ psycopg2-binary
 python-dotenv
 pyjwt
 bcrypt
+pypdf
+python-docx
+python-multipart
+

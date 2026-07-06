@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import predict, news, auth
+from app.routes import predict, news, auth, upload
 
 app = FastAPI(title="AI vs Human Text Detection API")
 
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(predict.router)
 app.include_router(news.router)
+app.include_router(upload.router)
 
 
 @app.get("/")

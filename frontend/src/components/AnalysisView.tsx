@@ -46,13 +46,11 @@ const SAMPLES: Record<string, string> = {
   human: `When I was twelve, my grandfather taught me how to make chai the way his mother used to. Not with teabags, never with teabags — he'd cringe at the thought. You had to bruise the cardamom pods first, he said, and add the ginger before the milk. I never quite got it right while he was alive. Now I make it every morning and somehow it always tastes a little different, like I'm still figuring it out.`,
 }
 
-type InputMode = 'text' | 'url' | 'code' | 'doc'
+type InputMode = 'text'
 
 const modePlaceholders: Record<InputMode, string> = {
   text: 'Paste your article, essay, email, research paper, or any written content here...',
-  url: 'Paste a URL to fetch and analyse the page content…',
-  code: "Paste code here — we'll check if it was AI-generated…",
-  doc: 'Use the file upload below to load your document…',
+
 }
 
 export default function AnalysisView({ inputText, onInputChange, analysisScrollRef }: AnalysisViewProps) {
@@ -65,6 +63,9 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
   const [showResults, setShowResults] = useState(false)
   const [inputError, setInputError] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [extractionError, setExtractionError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -73,11 +74,67 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
 
   const loadSample = useCallback((type = 'default') => {
     onInputChange(SAMPLES[type] || SAMPLES.default)
+    setFileName(null)
+    setExtractionError(null)
   }, [onInputChange])
 
   const clearInput = () => {
     onInputChange('')
     setShowResults(false)
+    setFileName(null)
+    setExtractionError(null)
+  }
+
+  const handleFile = async (file: File) => {
+    setFileName(file.name)
+    setExtractionError(null)
+
+    const supportedExtensions = ['.pdf', '.docx', '.txt', '.md']
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    if (!supportedExtensions.includes(ext)) {
+      setExtractionError(`Unsupported file type "${ext}". Supported formats: PDF, DOCX, TXT, MD.`)
+      return
+    }
+
+    if (file.size === 0) {
+      setExtractionError('The selected file is empty.')
+      return
+    }
+
+    setIsExtracting(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`${API_BASE}/extract-text`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to extract text from file.')
+      }
+
+      const data = await response.json()
+      if (data.text) {
+        onInputChange(data.text)
+      } else {
+        throw new Error('No text content returned from the file.')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An error occurred during text extraction.'
+      setExtractionError(message)
+    } finally {
+      setIsExtracting(false)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleFile(file)
+    }
   }
 
   const runAnalysis = async () => {
@@ -145,7 +202,9 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
     e.preventDefault()
     setIsDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file) onInputChange(`[File loaded: ${file.name}]`)
+    if (file) {
+      handleFile(file)
+    }
   }
 
   const score = verdict?.score ?? 50
@@ -157,43 +216,43 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
 
   const verdictData = detector === 'news'
     ? (backendLabel === 'fake'
+      ? {
+        bannerClass: 'verdict-banner ai-verdict',
+        emoji: '🚨',
+        title: 'Likely Fake / Misleading',
+        desc: verdict?.reason
+          ? `${verdict.reason} Confidence: ${(confidence * 100).toFixed(1)}%.`
+          : `Google Fact Check matched ${verdict?.matches ?? 0} related claim${(verdict?.matches ?? 0) === 1 ? '' : 's'}, with the majority rated FALSE/MISLEADING by reviewers. Confidence: ${(confidence * 100).toFixed(1)}%.`,
+        ringClass: 'score-ring high',
+        badgeText: '↑ Likely Fake',
+        badgeClass: 's-pill danger',
+      }
+      : backendLabel === 'real'
         ? {
-            bannerClass: 'verdict-banner ai-verdict',
-            emoji: '🚨',
-            title: 'Likely Fake / Misleading',
-            desc: verdict?.reason
-              ? `${verdict.reason} Confidence: ${(confidence * 100).toFixed(1)}%.`
-              : `Google Fact Check matched ${verdict?.matches ?? 0} related claim${(verdict?.matches ?? 0) === 1 ? '' : 's'}, with the majority rated FALSE/MISLEADING by reviewers. Confidence: ${(confidence * 100).toFixed(1)}%.`,
-            ringClass: 'score-ring high',
-            badgeText: '↑ Likely Fake',
-            badgeClass: 's-pill danger',
-          }
-        : backendLabel === 'real'
-        ? {
-            bannerClass: 'verdict-banner human-verdict',
-            emoji: '✅',
-            title: 'Fact-Checkers Rated This As True',
-            desc: `Reviewers from sources indexed by Google Fact Check rated related claims as TRUE/ACCURATE. Confidence: ${(confidence * 100).toFixed(1)}%.`,
-            ringClass: 'score-ring low',
-            badgeText: '↓ Looks Real',
-            badgeClass: 's-pill safe',
-          }
+          bannerClass: 'verdict-banner human-verdict',
+          emoji: '✅',
+          title: 'Fact-Checkers Rated This As True',
+          desc: `Reviewers from sources indexed by Google Fact Check rated related claims as TRUE/ACCURATE. Confidence: ${(confidence * 100).toFixed(1)}%.`,
+          ringClass: 'score-ring low',
+          badgeText: '↓ Looks Real',
+          badgeClass: 's-pill safe',
+        }
         : {
-            bannerClass: 'verdict-banner',
-            bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
-            emoji: '🤔',
-            title: (verdict?.matches ?? 0) === 0 ? 'No Fact-Check Found' : 'Mixed Fact-Check Signals',
-            desc: (verdict?.matches ?? 0) === 0
-              ? 'No published fact-check matched this text. That doesn\'t prove it\'s true — try a shorter, more specific claim, or verify with a trusted source.'
-              : 'Reviewers disagree or the claims couldn\'t be classified clearly. Open the sources below to read the original reviews.',
-            ringClass: 'score-ring',
-            ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
-            badgeText: '~ Uncertain',
-            badgeClass: 's-pill',
-            badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
-          })
+          bannerClass: 'verdict-banner',
+          bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
+          emoji: '🤔',
+          title: (verdict?.matches ?? 0) === 0 ? 'No Fact-Check Found' : 'Mixed Fact-Check Signals',
+          desc: (verdict?.matches ?? 0) === 0
+            ? 'No published fact-check matched this text. That doesn\'t prove it\'s true — try a shorter, more specific claim, or verify with a trusted source.'
+            : 'Reviewers disagree or the claims couldn\'t be classified clearly. Open the sources below to read the original reviews.',
+          ringClass: 'score-ring',
+          ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
+          badgeText: '~ Uncertain',
+          badgeClass: 's-pill',
+          badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
+        })
     : backendLabel === 'ai-generated'
-    ? {
+      ? {
         bannerClass: 'verdict-banner ai-verdict',
         emoji: '🤖',
         title: 'AI-Generated Text Detected',
@@ -202,28 +261,28 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
         badgeText: '↑ AI Detected',
         badgeClass: 's-pill danger',
       }
-    : backendLabel === 'uncertain'
-    ? {
-        bannerClass: 'verdict-banner',
-        bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
-        emoji: '🔀',
-        title: 'Uncertain — Could Be Either',
-        desc: `The model confidence is too low to make a definitive call (${(confidence * 100).toFixed(1)}%). The text may be a blend of AI and human writing, or simply ambiguous.`,
-        ringClass: 'score-ring',
-        ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
-        badgeText: '~ Uncertain',
-        badgeClass: 's-pill',
-        badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
-      }
-    : {
-        bannerClass: 'verdict-banner human-verdict',
-        emoji: '✍️',
-        title: 'Human-Written Text Detected',
-        desc: `The content shows strong indicators of authentic human authorship. Confidence: ${(confidence * 100).toFixed(1)}%. Natural sentence variance, organic vocabulary and irregular rhythm patterns detected.`,
-        ringClass: 'score-ring low',
-        badgeText: '↓ Human Written',
-        badgeClass: 's-pill safe',
-      }
+      : backendLabel === 'uncertain'
+        ? {
+          bannerClass: 'verdict-banner',
+          bannerStyle: { background: 'rgba(200,169,110,.05)', borderColor: 'rgba(200,169,110,.18)' },
+          emoji: '🔀',
+          title: 'Uncertain — Could Be Either',
+          desc: `The model confidence is too low to make a definitive call (${(confidence * 100).toFixed(1)}%). The text may be a blend of AI and human writing, or simply ambiguous.`,
+          ringClass: 'score-ring',
+          ringStyle: { borderColor: 'var(--warn)', color: 'var(--warn)' },
+          badgeText: '~ Uncertain',
+          badgeClass: 's-pill',
+          badgeStyle: { background: 'rgba(200,169,110,.13)', color: '#9a7438' },
+        }
+        : {
+          bannerClass: 'verdict-banner human-verdict',
+          emoji: '✍️',
+          title: 'Human-Written Text Detected',
+          desc: `The content shows strong indicators of authentic human authorship. Confidence: ${(confidence * 100).toFixed(1)}%. Natural sentence variance, organic vocabulary and irregular rhythm patterns detected.`,
+          ringClass: 'score-ring low',
+          badgeText: '↓ Human Written',
+          badgeClass: 's-pill safe',
+        }
 
   return (
     <div className="view active">
@@ -259,16 +318,14 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
 
               {/* Mode Tabs */}
               <div className="input-modes">
-                {(['text', 'url', 'code', 'doc'] as InputMode[]).map((m) => (
+                {(['text'] as InputMode[]).map((m) => (
                   <button
                     key={m}
                     className={`imode${mode === m ? ' active' : ''}`}
                     onClick={() => setMode(m)}
                   >
                     {m === 'text' && '✏️ Text'}
-                    {m === 'url' && '🔗 URL'}
-                    {m === 'code' && '💻 Code'}
-                    {m === 'doc' && '📄 Document'}
+
                   </button>
                 ))}
               </div>
@@ -281,11 +338,14 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
                   inputError
                     ? '⚠️ Please enter some content first…'
                     : detector === 'news'
-                    ? 'Paste a news article, headline, or social-media post — we\'ll check if it looks real or fake…'
-                    : modePlaceholders[mode]
+                      ? 'Paste a news article, headline, or social-media post — we\'ll check if it looks real or fake…'
+                      : modePlaceholders[mode]
                 }
                 value={inputText}
-                onChange={(e) => onInputChange(e.target.value)}
+                onChange={(e) => {
+                  onInputChange(e.target.value)
+                  setExtractionError(null)
+                }}
               />
 
               {/* Drop Zone */}
@@ -296,21 +356,51 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <div className="drop-icon">📎</div>
-                <div className="drop-text">
-                  <strong>Drop a file here, or click to browse</strong>
-                  <span>PDF, DOCX, TXT, or MD — we&apos;ll extract and analyse it</span>
-                </div>
+                {isExtracting ? (
+                  <>
+                    <div className="drop-icon" style={{ animation: 'spin 1.5s linear infinite' }}>⏳</div>
+                    <div className="drop-text">
+                      <strong>Extracting text...</strong>
+                      <span>Parsing content from {fileName}</span>
+                    </div>
+                  </>
+                ) : extractionError ? (
+                  <>
+                    <div className="drop-icon" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>⚠️</div>
+                    <div className="drop-text">
+                      <strong style={{ color: 'var(--danger)' }}>Upload Error</strong>
+                      <span style={{ color: 'var(--danger)' }}>{extractionError}</span>
+                    </div>
+                  </>
+                ) : fileName ? (
+                  <>
+                    <div className="drop-icon" style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}>✓</div>
+                    <div className="drop-text">
+                      <strong>File Selected: {fileName}</strong>
+                      <span>Text extracted successfully! You can edit it below or click Analyse Now.</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="drop-icon">📎</div>
+                    <div className="drop-text">
+                      <strong>Drop a file here, or click to browse</strong>
+                      <span>PDF, DOCX, TXT, or MD — we&apos;ll extract and analyse it</span>
+                    </div>
+                  </>
+                )}
                 <div className="drop-formats">
                   <span className="fmt-tag">PDF</span>
                   <span className="fmt-tag">DOCX</span>
                   <span className="fmt-tag">TXT</span>
+                  <span className="fmt-tag">MD</span>
                 </div>
                 <input
                   type="file"
                   ref={fileInputRef}
                   style={{ display: 'none' }}
                   accept=".pdf,.docx,.txt,.md"
+                  onChange={handleFileChange}
                 />
               </div>
 
@@ -319,7 +409,7 @@ export default function AnalysisView({ inputText, onInputChange, analysisScrollR
                 <div className="bottom-actions">
                   <div className="action-chip" onClick={() => loadSample()}>✨ Sample</div>
                   <div className="action-chip" onClick={clearInput}>🗑️ Clear</div>
-                  <div className="action-chip">🌐 Detect Language</div>
+
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
                   <span className="char-info">
